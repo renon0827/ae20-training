@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f4f2ee">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>AE-20 運指トレーニング</title>
+<style>
+  :root {
+    --bg: #f4f2ee;
+    --card: #ffffff;
+    --ink: #2b2a28;
+    --sub: #7a766f;
+    --accent: #2f6fed;
+    --accent-ink: #ffffff;
+    --ok: #1d9a5b;
+    --ng: #d64545;
+    --line: #e3dfd8;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 20px 16px 48px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
+  }
+  h1 { font-size: 20px; letter-spacing: .02em; }
+  h1 small { font-size: 12px; color: var(--sub); font-weight: normal; margin-left: 8px; }
+
+  .stats { display: flex; gap: 14px; font-size: 13px; color: var(--sub); }
+  .stats b { color: var(--ink); font-size: 16px; margin-left: 3px; }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px;
+    display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+    font-size: 13px;
+  }
+  .panel label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .panel select {
+    font-size: 13px; padding: 4px 8px; border: 1px solid var(--line);
+    border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  .panel .spacer { flex: 1; }
+  button.ghost {
+    font-size: 13px; padding: 6px 12px; border: 1px solid var(--line);
+    border-radius: 8px; background: #fff; color: var(--ink); cursor: pointer;
+  }
+  button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  .question {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 10px 16px 4px; margin-bottom: 14px;
+    text-align: center;
+    /* 選択肢をスクロールしても出題が見えるように上部に固定 */
+    position: sticky; top: 8px; z-index: 10;
+    box-shadow: 0 2px 10px rgba(0,0,0,.05);
+  }
+  .question .prompt { font-size: 14px; color: var(--sub); margin-top: 4px; }
+  #staff { display: block; margin: 0 auto; max-width: 300px; width: 100%; }
+
+  .feedback {
+    min-height: 30px; font-size: 16px; font-weight: bold;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding-bottom: 8px;
+  }
+  .feedback.ok { color: var(--ok); }
+  .feedback.ng { color: var(--ng); }
+
+  .choices {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  }
+
+  .choice {
+    background: var(--card); border: 2px solid var(--line);
+    border-radius: var(--radius); padding: 8px 4px 4px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center;
+    transition: transform .1s, border-color .1s, box-shadow .1s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none; -webkit-user-select: none;
+  }
+  .choice:hover:not(.disabled):not(.correct) {
+    transform: translateY(-2px); border-color: var(--accent);
+    box-shadow: 0 4px 10px rgba(0,0,0,.07);
+  }
+  .choice svg { width: 100%; max-width: 150px; height: auto; }
+  .choice .num {
+    font-size: 11px; color: var(--sub); padding: 2px 0 4px;
+  }
+  .choice.wrong { border-color: var(--ng); opacity: .45; cursor: default; animation: shake .3s; }
+  .choice.correct { border-color: var(--ok); box-shadow: 0 0 0 3px rgba(29,154,91,.25); cursor: default; }
+  .choice.disabled { cursor: default; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+
+  footer { margin-top: 20px; font-size: 11.5px; color: var(--sub); line-height: 1.7; }
+
+  /* ---- スマホ向け ---- */
+  @media (max-width: 600px) {
+    body { padding: 10px 10px 32px; }
+    header { margin-bottom: 10px; }
+    h1 { font-size: 17px; }
+    h1 small { display: block; margin: 2px 0 0; }
+    .panel { padding: 10px 12px; gap: 8px 12px; margin-bottom: 10px; }
+    .question { padding: 6px 10px 2px; margin-bottom: 10px; top: 6px; }
+    #staff { max-width: 220px; }
+    .question .prompt { font-size: 12.5px; margin-top: 2px; }
+    .feedback { min-height: 24px; font-size: 14px; padding-bottom: 6px; }
+    .choices { gap: 8px; }
+    .choice { border-radius: 10px; padding: 6px 2px 2px; }
+    .choice:hover:not(.disabled):not(.correct) { transform: none; box-shadow: none; }
+  }
+  @media (max-width: 360px) {
+    .choices { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>AE-20 運指トレーニング<small>Aerophone AE-20（サックス運指）</small></h1>
+    <div class="stats">
+      <span>正解<b id="stat-ok">0</b><span style="font-size:11px">/</span><b id="stat-total" style="font-size:13px">0</b></span>
+      <span>連続<b id="stat-streak">0</b></span>
+    </div>
+  </header>
+
+  <div class="panel">
+    <label>出題範囲
+      <select id="range">
+        <option value="mid">まずはここから（ソ4〜ド5）</option>
+        <option value="low">低音域（シ♭3〜シ4）</option>
+        <option value="high">高音域（ド5〜ファ♯5）</option>
+        <option value="all" selected>全音域（シ♭3〜ファ♯5）</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="accidentals"> ♯・♭を含む</label>
+    <label><input type="checkbox" id="sound" checked> 正解音を鳴らす</label>
+    <span class="spacer"></span>
+    <button class="ghost" id="skip">スキップ ▸</button>
+  </div>
+
+  <div class="question">
+    <svg id="staff" viewBox="0 0 280 190" aria-label="出題の音符"></svg>
+    <div class="prompt">この音の運指はどれ？</div>
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <div class="choices" id="choices"></div>
+
+  <footer>
+    図と運指は Roland AE-20 オーナーズマニュアルの運指表（Sax）から抽出した公式データです。オレンジ＝押すキー。
+    出題範囲は運指表と同じ B♭3〜F♯5（裏側の親指オクターブキーは全体をオクターブ移調するもので、運指表には含まれません）。
+    複数の運指がある音は第1候補を正解としています。
+    再生音は記譜音（実音はアルトサックス音色の場合、長6度下のE♭管実音になります）。
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+ * 音符・運指データ
+ * step: 五線上の位置（第1線ミ=E4 を 0 とした音階ステップ）
+ * f: 押すキー（AE20.keys のインデックス）
+ *
+ * 運指と図形は Roland AE-20 オーナーズマニュアルの
+ * 運指表（Sax）のベクターデータから抽出した公式データ。
+ * 音域は表のとおり B♭3〜F♯5。オクターブキー（裏側の親指）は
+ * 全体を±オクターブ移調するため運指表には含まれない。
+ * ============================================================ */
+const AE20 = {"w": 52.8, "h": 90.7, "body": "M 37.02 57.42 C 36.79 57.05 36.57 56.66 36.35 56.29 C 36.14 55.93 36.02 55.65 36.01 55.41 C 35.99 55.00 36.24 54.71 36.82 54.38 C 38.37 53.47 39.93 52.57 41.48 51.66 C 42.38 51.14 43.28 50.60 44.19 50.08 C 44.42 49.95 44.67 49.86 44.82 49.80 C 45.30 49.81 45.60 49.95 45.78 50.27 C 46.12 50.87 46.48 51.46 46.79 52.07 C 46.91 52.31 46.97 52.52 46.96 52.70 C 46.95 53.00 46.76 53.23 46.38 53.45 C 43.80 54.93 41.23 56.40 38.65 57.86 C 37.93 58.27 37.46 58.14 37.02 57.42 M 35.00 52.99 C 34.53 52.99 34.23 52.82 34.04 52.49 C 33.71 51.93 33.38 51.38 33.08 50.80 C 32.96 50.58 32.91 50.38 32.92 50.19 C 32.93 49.87 33.12 49.60 33.47 49.38 C 34.25 48.91 35.05 48.44 35.85 48.00 C 36.44 47.68 36.96 47.82 37.31 48.39 C 37.64 48.92 37.96 49.46 38.26 50.01 C 38.38 50.22 38.43 50.42 38.43 50.61 C 38.43 50.91 38.28 51.18 37.94 51.39 C 37.09 51.91 36.21 52.39 35.34 52.88 C 35.21 52.95 35.06 52.97 35.00 52.99 M 31.54 44.73 C 30.97 44.73 30.58 44.49 30.47 44.03 C 30.31 43.33 30.18 42.63 30.09 41.93 C 30.08 41.86 30.08 41.79 30.09 41.73 C 30.10 41.26 30.44 40.93 31.00 40.83 C 32.12 40.61 33.25 40.41 34.39 40.22 C 36.17 39.90 37.96 39.58 39.75 39.27 C 40.52 39.14 40.95 39.41 41.10 40.17 C 41.22 40.74 41.32 41.32 41.42 41.90 C 41.44 41.99 41.44 42.07 41.44 42.15 C 41.46 42.70 41.14 43.05 40.52 43.17 C 39.81 43.31 39.09 43.43 38.37 43.56 C 36.27 43.92 34.17 44.29 32.08 44.65 C 31.87 44.69 31.67 44.71 31.54 44.73 M 26.67 36.01 L 26.67 35.99 L 26.67 35.98 C 26.66 34.26 28.03 32.89 29.77 32.89 C 31.49 32.89 32.86 34.27 32.87 36.00 C 32.87 36.01 32.86 36.01 32.86 36.01 C 32.86 36.02 32.87 36.02 32.87 36.03 C 32.87 37.70 31.47 39.08 29.78 39.09 C 28.04 39.09 26.68 37.74 26.67 36.01 M 26.66 62.54 C 26.63 64.24 25.19 65.61 23.47 65.56 C 21.80 65.52 20.41 64.09 20.44 62.43 L 20.44 62.42 L 20.44 62.41 C 20.47 60.68 21.88 59.33 23.60 59.35 C 25.31 59.38 26.70 60.81 26.66 62.52 L 26.66 62.52 L 26.66 62.54 M 25.00 74.92 C 24.99 76.60 23.58 77.98 21.90 77.98 C 20.21 77.98 18.79 76.56 18.78 74.86 L 18.78 74.85 L 18.78 74.84 C 18.78 73.15 20.22 71.74 21.92 71.75 C 23.62 71.76 25.02 73.19 25.00 74.90 C 25.00 74.90 25.00 74.90 25.00 74.91 C 25.00 74.91 25.00 74.92 25.00 74.92 M 18.82 81.49 C 18.54 82.00 18.25 82.51 17.95 83.01 C 17.56 83.65 17.07 83.78 16.41 83.41 C 14.70 82.44 13.00 81.47 11.30 80.49 C 10.87 80.24 10.67 79.94 10.67 79.59 C 10.67 79.38 10.74 79.14 10.88 78.88 C 11.18 78.35 11.48 77.83 11.79 77.31 C 12.02 76.94 12.30 76.78 12.76 76.77 C 12.88 76.81 13.11 76.86 13.30 76.97 C 15.00 77.95 16.70 78.93 18.39 79.93 C 18.80 80.17 19.00 80.46 19.00 80.81 C 19.01 81.01 18.95 81.24 18.82 81.49 M 15.98 86.29 C 15.66 86.93 15.29 87.54 14.92 88.14 C 14.74 88.41 14.47 88.57 13.97 88.55 C 13.89 88.52 13.67 88.47 13.47 88.36 C 11.80 87.42 10.13 86.47 8.47 85.51 C 8.01 85.25 7.80 84.96 7.80 84.59 C 7.79 84.38 7.87 84.14 8.01 83.87 C 8.30 83.35 8.58 82.84 8.89 82.34 C 9.26 81.74 9.77 81.59 10.38 81.94 C 12.12 82.94 13.85 83.95 15.57 84.98 C 15.89 85.16 16.07 85.43 16.09 85.74 C 16.11 85.91 16.07 86.10 15.98 86.29 M 10.90 66.38 C 11.18 65.87 11.49 65.37 11.78 64.87 C 11.97 64.54 12.25 64.34 12.72 64.30 C 12.86 64.35 13.09 64.40 13.28 64.51 C 15.00 65.50 16.72 66.50 18.42 67.51 C 18.81 67.73 19.00 68.02 19.00 68.36 C 19.01 68.56 18.95 68.78 18.82 69.02 C 18.54 69.54 18.25 70.05 17.96 70.55 C 17.58 71.18 17.07 71.32 16.42 70.96 C 15.79 70.62 15.18 70.26 14.56 69.91 C 13.49 69.30 12.42 68.69 11.36 68.07 C 10.88 67.80 10.66 67.50 10.66 67.14 C 10.66 66.91 10.74 66.67 10.90 66.38 M 15.35 61.35 C 15.34 59.59 15.34 57.83 15.36 56.08 C 15.36 55.46 15.72 55.12 16.34 55.09 C 16.70 55.07 17.05 55.07 17.41 55.09 C 18.13 55.12 18.49 55.47 18.50 56.19 C 18.51 56.62 18.51 57.05 18.51 57.49 C 18.51 57.91 18.50 58.33 18.50 58.76 L 18.51 58.76 L 18.51 58.78 C 18.51 59.58 18.51 60.37 18.51 61.17 C 18.50 62.02 18.15 62.37 17.28 62.39 C 16.97 62.40 16.65 62.41 16.34 62.38 C 15.74 62.33 15.36 61.97 15.35 61.37 L 15.35 61.35 M 20.03 51.69 C 20.02 49.98 21.42 48.59 23.14 48.59 C 24.86 48.60 26.24 49.99 26.24 51.72 L 26.24 51.73 L 26.24 51.74 C 26.24 53.45 24.83 54.82 23.10 54.81 C 21.43 54.80 20.03 53.39 20.03 51.72 L 20.03 51.71 L 20.03 51.69 M 22.92 16.93 C 22.93 15.25 24.33 13.85 26.00 13.85 C 27.72 13.84 29.13 15.24 29.15 16.95 C 29.15 16.95 29.14 16.96 29.14 16.96 C 29.14 16.96 29.15 16.97 29.15 16.97 C 29.16 18.67 27.74 20.08 26.02 20.08 C 24.33 20.08 22.91 18.65 22.92 16.95 C 22.92 16.95 22.92 16.94 22.92 16.94 C 22.92 16.94 22.92 16.93 22.92 16.93 M 23.53 23.58 C 23.53 22.41 24.45 21.48 25.63 21.48 C 26.76 21.49 27.70 22.42 27.71 23.56 L 27.71 23.57 L 27.71 23.58 C 27.73 24.74 26.79 25.67 25.60 25.67 C 24.46 25.67 23.54 24.75 23.53 23.61 C 23.53 23.60 23.54 23.60 23.54 23.59 C 23.54 23.59 23.53 23.59 23.53 23.58 M 29.15 30.23 C 29.14 31.91 27.75 33.30 26.06 33.30 C 24.34 33.31 22.93 31.93 22.93 30.22 L 22.93 30.21 L 22.93 30.20 C 22.91 28.48 24.30 27.09 26.04 27.09 C 27.75 27.09 29.15 28.49 29.15 30.21 L 29.15 30.22 L 29.15 30.23 M 25.28 7.04 L 25.29 7.04 C 25.29 6.20 25.29 5.37 25.30 4.53 C 25.31 3.77 25.65 3.42 26.41 3.40 C 26.99 3.39 27.58 3.39 28.17 3.40 C 28.85 3.42 29.27 3.81 29.28 4.50 C 29.29 5.35 29.30 6.21 29.30 7.06 C 29.31 7.91 29.31 8.75 29.30 9.60 C 29.30 10.30 28.90 10.69 28.21 10.71 C 27.58 10.72 26.96 10.72 26.33 10.70 C 25.66 10.69 25.30 10.32 25.28 9.64 C 25.27 9.20 25.27 8.77 25.27 8.33 C 25.27 7.90 25.28 7.47 25.28 7.04 M 42.75 45.00 C 43.19 45.64 43.55 46.32 43.94 46.99 C 43.99 47.10 43.98 47.24 43.99 47.28 C 43.99 47.28 43.99 47.28 43.99 47.29 C 43.99 47.29 43.99 47.30 43.99 47.30 C 44.00 47.73 43.85 47.99 43.56 48.16 C 42.69 48.67 41.83 49.18 40.94 49.65 C 40.41 49.94 39.92 49.80 39.59 49.27 C 39.23 48.71 38.90 48.12 38.60 47.53 C 38.50 47.34 38.46 47.16 38.47 46.99 C 38.48 46.69 38.64 46.43 38.93 46.24 C 39.78 45.72 40.65 45.21 41.53 44.73 C 41.99 44.47 42.46 44.57 42.75 45.00 M 42.67 88.24 L 42.67 87.48 C 42.65 86.92 42.59 86.35 42.59 85.79 C 42.59 85.19 42.66 84.59 42.68 84.00 C 42.68 82.24 42.68 80.61 42.69 79.25 C 42.69 78.04 42.69 76.83 42.69 75.63 C 42.69 75.03 42.80 74.46 43.06 73.93 C 43.39 73.25 43.74 72.59 44.10 71.93 C 44.54 71.15 45.04 70.41 45.44 69.61 C 45.52 69.45 45.62 69.34 45.72 69.28 C 45.94 68.89 46.18 68.49 46.41 68.08 C 46.42 68.00 46.44 67.92 46.48 67.84 C 46.59 67.59 46.71 67.35 46.85 67.12 C 47.19 66.56 47.57 66.04 47.90 65.48 C 49.32 63.04 50.73 60.59 52.15 58.15 C 52.57 57.43 52.78 56.71 52.78 56.00 C 52.78 55.28 52.58 54.56 52.16 53.84 C 50.53 51.03 48.91 48.23 47.28 45.42 C 45.99 43.17 44.70 40.92 43.40 38.68 C 42.91 37.85 42.66 36.98 42.68 36.00 L 42.68 35.98 L 42.68 35.98 C 42.69 35.30 42.70 34.62 42.70 33.94 C 42.70 32.16 42.69 30.20 42.68 29.71 C 42.67 29.70 42.67 29.69 42.67 29.68 C 42.43 29.65 42.19 29.62 41.97 29.60 C 41.88 29.60 41.78 29.60 41.70 29.59 C 41.63 29.30 41.60 28.07 41.60 26.75 C 41.60 25.06 41.64 23.19 41.72 22.89 C 42.03 22.84 42.35 22.80 42.69 22.74 L 42.69 22.73 C 42.69 22.56 42.69 22.31 42.69 22.04 C 42.69 21.86 42.69 21.68 42.69 21.50 C 42.68 21.34 42.70 21.12 42.61 21.02 C 42.36 20.73 42.40 20.41 42.40 20.08 C 42.40 19.76 42.39 19.43 42.39 19.12 C 42.39 18.78 42.39 18.45 42.41 18.12 C 42.42 17.84 42.51 17.57 42.57 17.26 C 42.30 17.24 42.00 17.21 41.71 17.19 C 41.64 16.87 41.61 15.62 41.61 14.29 C 41.61 12.58 41.66 10.72 41.74 10.47 C 42.06 10.43 42.38 10.39 42.74 10.34 C 42.69 9.40 42.64 8.53 42.60 7.66 C 42.53 5.85 42.01 4.16 41.12 2.59 C 40.63 1.73 40.13 0.87 39.64 0.00 L 14.94 0.00 C 14.41 0.91 14.01 1.60 13.86 1.85 C 12.51 4.07 11.89 6.46 11.91 9.06 C 11.93 11.93 11.93 14.79 11.93 17.66 C 11.93 20.52 11.92 23.39 11.92 26.26 L 11.92 27.32 C 12.39 27.35 12.84 27.37 13.32 27.39 L 13.32 27.41 L 13.32 35.04 C 12.82 35.06 12.38 35.05 11.94 35.07 L 11.94 37.27 C 12.43 37.30 12.88 37.32 13.39 37.35 C 13.39 37.38 13.39 37.40 13.39 37.43 C 13.40 38.51 13.41 39.56 13.41 40.61 L 13.41 40.63 C 13.41 41.64 13.40 42.65 13.39 43.70 C 13.39 43.75 13.39 43.81 13.39 43.87 C 12.85 43.89 12.40 43.91 11.94 43.93 L 11.94 45.54 C 12.42 45.57 12.87 45.59 13.30 45.62 C 13.37 45.93 13.41 47.13 13.41 48.42 C 13.42 50.06 13.37 51.86 13.28 52.15 C 13.16 52.15 13.04 52.15 12.93 52.14 C 12.59 52.16 12.26 52.18 11.92 52.20 L 11.92 53.35 C 11.92 55.01 11.90 56.66 11.93 58.31 L 11.93 58.32 L 11.93 58.34 C 11.95 59.42 11.67 60.39 11.13 61.32 C 7.63 67.32 4.16 73.33 0.67 79.33 C 0.22 80.10 0.00 80.85 0.00 81.61 C 0.01 82.36 0.24 83.11 0.69 83.88 C 2.01 86.09 3.29 88.31 4.59 90.53 C 4.63 90.60 4.67 90.66 4.70 90.73 L 42.64 90.73 C 42.63 90.35 42.61 89.98 42.61 89.60 C 42.62 89.15 42.65 88.70 42.67 88.24", "keys": [{"i": 0, "cx": 27.3, "cy": 5.9, "d": "M 25.29 7.06 C 25.29 6.23 25.29 5.39 25.30 4.55 C 25.31 3.79 25.65 3.44 26.41 3.42 C 26.99 3.41 27.58 3.41 28.17 3.42 C 28.85 3.44 29.27 3.83 29.28 4.52 C 29.29 5.37 29.30 6.21 29.30 7.06 C 29.30 6.21 29.29 5.35 29.28 4.50 C 29.27 3.81 28.85 3.42 28.17 3.40 C 27.58 3.38 26.99 3.39 26.41 3.40 C 25.65 3.42 25.31 3.77 25.30 4.53 C 25.29 5.37 25.29 6.20 25.29 7.04 L 25.28 7.04 C 25.28 7.47 25.27 7.90 25.27 8.33 C 25.27 7.91 25.28 7.49 25.28 7.06 L 25.29 7.06"}, {"i": 1, "cx": 27.3, "cy": 8.9, "d": "M 26.33 10.68 C 26.96 10.70 27.58 10.70 28.21 10.68 C 28.90 10.66 29.30 10.28 29.30 9.58 C 29.31 8.74 29.31 7.90 29.30 7.06 C 29.30 6.21 29.29 5.37 29.28 4.52 C 29.27 3.83 28.85 3.44 28.17 3.42 C 27.58 3.41 26.99 3.41 26.41 3.42 C 25.65 3.44 25.31 3.79 25.30 4.55 C 25.29 5.39 25.29 6.23 25.29 7.06 L 25.28 7.06 C 25.28 7.49 25.27 7.91 25.27 8.33 C 25.27 8.76 25.27 9.19 25.28 9.61 C 25.30 10.30 25.66 10.66 26.33 10.68"}, {"i": 2, "cx": 42.3, "cy": 13.7, "d": "M 41.31 10.25 H 43.22 V 17.08 H 41.31 Z"}, {"i": 3, "cx": 26.0, "cy": 15.4, "d": "M 26.01 13.87 C 27.72 13.87 29.13 15.26 29.15 16.96 C 29.15 16.96 29.15 16.95 29.15 16.95 C 29.14 15.24 27.72 13.84 26.01 13.85 C 24.33 13.85 22.93 15.25 22.92 16.93 C 22.92 16.93 22.92 16.94 22.92 16.94 C 22.93 15.27 24.33 13.87 26.01 13.87"}, {"i": 4, "cx": 43.9, "cy": 17.2, "d": "M 42.20 13.79 H 45.64 V 20.61 H 42.20 Z"}, {"i": 5, "cx": 26.0, "cy": 18.5, "d": "M 26.02 20.06 C 27.74 20.06 29.15 18.65 29.14 16.96 C 29.13 15.26 27.71 13.87 26.00 13.87 C 24.33 13.87 22.93 15.27 22.92 16.94 C 22.92 18.64 24.34 20.06 26.02 20.06"}, {"i": 6, "cx": 25.6, "cy": 24.6, "d": "M 25.60 25.65 C 26.78 25.65 27.72 24.72 27.71 23.57 C 27.69 22.44 26.76 21.51 25.63 21.51 C 24.46 21.50 23.53 22.42 23.54 23.59 C 23.55 24.73 24.47 25.65 25.60 25.65"}, {"i": 7, "cx": 42.3, "cy": 26.1, "d": "M 41.31 22.67 H 43.22 V 29.49 H 41.31 Z"}, {"i": 8, "cx": 26.0, "cy": 28.7, "d": "M 26.04 27.09 C 24.30 27.09 22.91 28.47 22.93 30.20 L 22.93 30.20 C 22.92 28.49 24.31 27.12 26.04 27.12 C 27.75 27.12 29.14 28.51 29.15 30.22 L 29.15 30.21 C 29.15 28.49 27.75 27.09 26.04 27.09"}, {"i": 9, "cx": 11.5, "cy": 31.1, "d": "M 13.31 35.01 L 10.87 35.01 L 9.64 27.16 L 13.31 27.16 L 13.31 35.01"}, {"i": 10, "cx": 26.0, "cy": 31.8, "d": "M 26.04 27.12 C 24.31 27.12 22.92 28.49 22.93 30.21 C 22.94 31.91 24.34 33.29 26.06 33.28 C 27.75 33.27 29.14 31.89 29.15 30.22 C 29.14 28.51 27.75 27.12 26.04 27.12"}, {"i": 11, "cx": 29.8, "cy": 34.5, "d": "M 29.77 32.91 C 31.48 32.91 32.86 34.29 32.87 36.01 C 32.87 36.01 32.87 36.01 32.87 36.00 C 32.87 34.27 31.49 32.89 29.77 32.89 C 28.03 32.89 26.66 34.26 26.67 35.98 L 26.67 35.99 C 26.67 34.27 28.03 32.91 29.77 32.91"}, {"i": 12, "cx": 29.8, "cy": 37.5, "d": "M 29.78 39.06 C 31.47 39.06 32.86 37.68 32.86 36.01 C 32.86 34.29 31.48 32.91 29.77 32.91 C 28.03 32.91 26.67 34.27 26.67 35.99 C 26.68 37.72 28.04 39.07 29.78 39.06"}, {"i": 13, "cx": 12.1, "cy": 40.4, "d": "M 10.87 37.17 H 13.31 V 43.71 H 10.87 Z"}, {"i": 14, "cx": 35.8, "cy": 43.2, "d": "M 30.47 44.00 C 30.58 44.47 30.97 44.71 31.54 44.71 C 31.67 44.69 31.87 44.66 32.08 44.63 C 34.17 44.26 36.27 43.90 38.37 43.53 C 39.09 43.40 39.81 43.29 40.53 43.15 C 41.14 43.03 41.45 42.68 41.44 42.15 C 41.44 42.08 41.43 42.00 41.42 41.92 C 41.32 41.34 41.22 40.77 41.11 40.20 C 40.95 39.43 40.52 39.16 39.75 39.30 C 37.96 39.61 36.17 39.92 34.39 40.24 C 33.26 40.44 32.12 40.64 31.00 40.85 C 30.45 40.96 30.12 41.27 30.09 41.73 C 30.08 41.78 30.08 41.84 30.09 41.91 C 30.18 42.61 30.31 43.31 30.47 44.00"}, {"i": 15, "cx": 41.2, "cy": 48.5, "d": "M 42.75 45.03 C 42.46 44.59 41.99 44.50 41.53 44.75 C 40.65 45.24 39.78 45.74 38.93 46.27 C 38.65 46.45 38.49 46.70 38.47 46.99 C 38.47 47.15 38.51 47.33 38.60 47.50 C 38.90 48.10 39.23 48.68 39.59 49.25 C 39.92 49.77 40.41 49.92 40.94 49.63 C 41.83 49.16 42.69 48.64 43.56 48.14 C 43.85 47.97 44.00 47.71 43.99 47.29 C 43.98 47.24 43.99 47.11 43.94 47.02 C 43.55 46.35 43.19 45.67 42.75 45.03"}, {"i": 16, "cx": 12.1, "cy": 48.7, "d": "M 10.87 45.45 H 13.31 V 51.99 H 10.87 Z"}, {"i": 17, "cx": 23.1, "cy": 50.2, "d": "M 23.14 48.62 C 24.86 48.62 26.23 50.01 26.24 51.73 L 26.24 51.72 C 26.24 49.99 24.86 48.60 23.14 48.59 C 21.42 48.59 20.02 49.98 20.03 51.69 L 20.03 51.71 C 20.03 50.00 21.43 48.61 23.14 48.62"}, {"i": 18, "cx": 35.7, "cy": 51.6, "d": "M 34.04 52.46 C 34.23 52.80 34.53 52.97 35.00 52.97 C 35.06 52.95 35.21 52.93 35.34 52.86 C 36.21 52.37 37.09 51.89 37.94 51.36 C 38.27 51.16 38.43 50.90 38.43 50.61 C 38.43 50.43 38.37 50.23 38.26 50.03 C 37.96 49.48 37.64 48.94 37.31 48.41 C 36.95 47.84 36.44 47.70 35.85 48.03 C 35.05 48.47 34.25 48.93 33.47 49.41 C 33.12 49.61 32.94 49.88 32.92 50.19 C 32.92 50.37 32.97 50.57 33.08 50.78 C 33.38 51.35 33.71 51.91 34.04 52.46"}, {"i": 19, "cx": 23.1, "cy": 53.3, "d": "M 23.10 54.79 C 24.83 54.80 26.23 53.43 26.24 51.73 C 26.23 50.01 24.86 48.62 23.14 48.62 C 21.43 48.61 20.03 50.00 20.03 51.71 C 20.04 53.38 21.43 54.78 23.10 54.79"}, {"i": 20, "cx": 41.5, "cy": 55.5, "d": "M 37.02 57.39 C 37.46 58.11 37.93 58.25 38.65 57.84 C 41.23 56.37 43.80 54.90 46.38 53.43 C 46.75 53.21 46.94 52.99 46.96 52.70 C 46.96 52.52 46.91 52.33 46.79 52.10 C 46.48 51.48 46.12 50.89 45.78 50.29 C 45.60 49.98 45.30 49.84 44.82 49.82 C 44.67 49.89 44.42 49.97 44.19 50.11 C 43.28 50.62 42.38 51.16 41.48 51.68 C 39.93 52.59 38.37 53.49 36.82 54.40 C 36.25 54.73 36.00 55.02 36.01 55.41 C 36.03 55.64 36.14 55.92 36.35 56.26 C 36.57 56.64 36.79 57.02 37.02 57.39"}, {"i": 21, "cx": 16.9, "cy": 60.6, "d": "M 16.34 62.36 C 16.65 62.38 16.97 62.37 17.28 62.37 C 18.15 62.35 18.50 62.00 18.51 61.14 C 18.51 60.36 18.51 59.57 18.51 58.78 L 18.50 58.78 L 18.50 58.76 C 18.50 58.33 18.51 57.91 18.51 57.49 C 18.51 57.06 18.51 56.63 18.50 56.21 C 18.49 55.49 18.13 55.14 17.41 55.11 C 17.05 55.10 16.70 55.09 16.34 55.11 C 15.72 55.15 15.36 55.48 15.36 56.10 C 15.34 57.85 15.34 59.60 15.36 61.35 C 15.36 61.95 15.74 62.31 16.34 62.36"}, {"i": 22, "cx": 23.6, "cy": 60.9, "d": "M 23.60 59.35 C 21.87 59.33 20.47 60.68 20.44 62.41 L 20.44 62.42 C 20.48 60.70 21.88 59.35 23.60 59.38 C 25.31 59.41 26.69 60.83 26.66 62.52 L 26.66 62.52 C 26.70 60.81 25.31 59.38 23.60 59.35"}, {"i": 23, "cx": 23.5, "cy": 64.0, "d": "M 23.60 59.38 C 21.88 59.35 20.48 60.70 20.44 62.42 C 20.42 64.08 21.80 65.50 23.47 65.54 C 25.19 65.58 26.62 64.23 26.66 62.52 C 26.69 60.83 25.31 59.41 23.60 59.38"}, {"i": 24, "cx": 14.8, "cy": 69.2, "d": "M 11.36 68.05 C 12.42 68.67 13.49 69.27 14.56 69.88 C 15.18 70.24 15.79 70.60 16.42 70.94 C 17.07 71.29 17.58 71.15 17.95 70.53 C 18.25 70.02 18.54 69.52 18.82 69.00 C 18.94 68.77 19.00 68.56 19.00 68.36 C 18.99 68.03 18.80 67.75 18.42 67.53 C 16.72 66.52 15.00 65.52 13.28 64.53 C 13.09 64.42 12.86 64.37 12.72 64.32 C 12.25 64.36 11.97 64.56 11.78 64.89 C 11.49 65.39 11.18 65.90 10.90 66.41 C 10.74 66.68 10.66 66.92 10.66 67.13 C 10.67 67.49 10.89 67.78 11.36 68.05"}, {"i": 25, "cx": 21.9, "cy": 73.3, "d": "M 21.92 71.75 C 20.22 71.74 18.78 73.15 18.78 74.84 L 18.78 74.85 C 18.79 73.16 20.22 71.76 21.92 71.77 C 23.62 71.79 25.01 73.21 25.00 74.91 C 25.00 74.90 25.01 74.90 25.01 74.90 C 25.02 73.19 23.62 71.76 21.92 71.75"}, {"i": 26, "cx": 21.9, "cy": 76.4, "d": "M 21.92 71.77 C 20.22 71.76 18.79 73.16 18.78 74.85 C 18.79 76.54 20.21 77.96 21.90 77.96 C 23.58 77.96 24.98 76.58 25.00 74.91 C 25.01 73.21 23.62 71.79 21.92 71.77"}, {"i": 27, "cx": 14.8, "cy": 81.7, "d": "M 18.39 79.95 C 16.70 78.95 15.00 77.97 13.30 76.99 C 13.11 76.88 12.88 76.83 12.76 76.79 C 12.30 76.80 12.02 76.97 11.79 77.34 C 11.48 77.85 11.18 78.38 10.88 78.90 C 10.74 79.16 10.67 79.38 10.67 79.59 C 10.68 79.93 10.88 80.22 11.30 80.46 C 13.00 81.45 14.70 82.42 16.41 83.38 C 17.07 83.76 17.56 83.62 17.95 82.98 C 18.25 82.48 18.54 81.98 18.82 81.46 C 18.94 81.22 19.01 81.01 19.00 80.81 C 18.99 80.47 18.79 80.19 18.39 79.95"}, {"i": 28, "cx": 12.0, "cy": 86.6, "d": "M 15.57 85.00 C 13.85 83.98 12.12 82.96 10.39 81.96 C 9.77 81.61 9.26 81.77 8.89 82.37 C 8.58 82.87 8.30 83.38 8.01 83.89 C 7.87 84.15 7.80 84.38 7.80 84.59 C 7.80 84.94 8.02 85.23 8.47 85.49 C 10.13 86.45 11.80 87.39 13.47 88.34 C 13.67 88.45 13.89 88.50 13.97 88.53 C 14.47 88.55 14.74 88.39 14.92 88.11 C 15.29 87.51 15.66 86.90 15.98 86.27 C 16.07 86.09 16.10 85.91 16.09 85.74 C 16.06 85.44 15.88 85.18 15.57 85.00"}], "fingerings": {"A#/Bb3": [[5, 10, 12, 19, 20, 23, 26, 28]], "B3": [[5, 10, 12, 18, 19, 23, 26, 28]], "C4": [[5, 10, 12, 19, 23, 26, 28]], "C#/Db4": [[5, 10, 12, 15, 19, 23, 26, 28]], "D4": [[5, 10, 12, 15, 19, 23, 26]], "D#/Eb4": [[5, 10, 12, 15, 19, 23, 26, 27]], "E4": [[5, 10, 12, 15, 19, 23]], "F4": [[5, 10, 12, 15, 19]], "F#/Gb4": [[5, 10, 12, 23], [5, 10, 12, 19, 24]], "G4": [[5, 10, 12]], "G#/Ab4": [[5, 10, 12, 14]], "A4": [[5, 10]], "A#/Bb4": [[5, 10, 16], [5, 6]], "B4": [[5]], "C5": [[10], [5, 13]], "C#/Db5": [[]], "D5": [[4]], "D#/Eb5": [[2, 4]], "E5": [[2, 4, 9], [1, 10, 12]], "F5": [[2, 4, 7, 9], [1, 10]], "F#/Gb5": [[2, 4, 7, 9, 21]]}};
+
+const NOTES = [
+  { id:"Bb3", jp:"シ♭",  en:"B♭3", midi:58, step:-3, acc:"b" },
+  { id:"B3",  jp:"シ",    en:"B3",  midi:59, step:-3, acc:null },
+  { id:"C4",  jp:"ド",    en:"C4",  midi:60, step:-2, acc:null },
+  { id:"Cs4", jp:"ド♯",  en:"C♯4", midi:61, step:-2, acc:"#" },
+  { id:"D4",  jp:"レ",    en:"D4",  midi:62, step:-1, acc:null },
+  { id:"Eb4", jp:"ミ♭",  en:"E♭4", midi:63, step: 0, acc:"b" },
+  { id:"E4",  jp:"ミ",    en:"E4",  midi:64, step: 0, acc:null },
+  { id:"F4",  jp:"ファ",  en:"F4",  midi:65, step: 1, acc:null },
+  { id:"Fs4", jp:"ファ♯",en:"F♯4", midi:66, step: 1, acc:"#" },
+  { id:"G4",  jp:"ソ",    en:"G4",  midi:67, step: 2, acc:null },
+  { id:"Gs4", jp:"ソ♯",  en:"G♯4", midi:68, step: 2, acc:"#" },
+  { id:"A4",  jp:"ラ",    en:"A4",  midi:69, step: 3, acc:null },
+  { id:"Bb4", jp:"シ♭",  en:"B♭4", midi:70, step: 4, acc:"b" },
+  { id:"B4",  jp:"シ",    en:"B4",  midi:71, step: 4, acc:null },
+  { id:"C5",  jp:"ド",    en:"C5",  midi:72, step: 5, acc:null },
+  { id:"Cs5", jp:"ド♯",  en:"C♯5", midi:73, step: 5, acc:"#" },
+  { id:"D5",  jp:"レ",    en:"D5",  midi:74, step: 6, acc:null },
+  { id:"Eb5", jp:"ミ♭",  en:"E♭5", midi:75, step: 7, acc:"b" },
+  { id:"E5",  jp:"ミ",    en:"E5",  midi:76, step: 7, acc:null },
+  { id:"F5",  jp:"ファ",  en:"F5",  midi:77, step: 8, acc:null },
+  { id:"Fs5", jp:"ファ♯",en:"F♯5", midi:78, step: 8, acc:"#" },
+];
+// チャート由来の運指（第1候補）を各音に割り当てる
+const CHART_LABELS = {
+  Bb3:"A#/Bb3", B3:"B3", C4:"C4", Cs4:"C#/Db4", D4:"D4", Eb4:"D#/Eb4",
+  E4:"E4", F4:"F4", Fs4:"F#/Gb4", G4:"G4", Gs4:"G#/Ab4", A4:"A4",
+  Bb4:"A#/Bb4", B4:"B4", C5:"C5", Cs5:"C#/Db5", D5:"D5", Eb5:"D#/Eb5",
+  E5:"E5", F5:"F5", Fs5:"F#/Gb5",
+};
+NOTES.forEach(n => { n.f = AE20.fingerings[CHART_LABELS[n.id]][0]; });
+
+const RANGES = {
+  mid:  n => n.midi >= 67 && n.midi <= 72,  // G4〜C5
+  low:  n => n.midi >= 58 && n.midi <= 71,  // B♭3〜B4
+  high: n => n.midi >= 72 && n.midi <= 78,  // C5〜F♯5
+  all:  () => true,
+};
+
+const sig = f => f.join(",");
+
+/* ============================================================
+ * 五線譜の描画（SVG）
+ * ============================================================ */
+const SVGNS = "http://www.w3.org/2000/svg";
+function el(name, attrs, text) {
+  const e = document.createElementNS(SVGNS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function drawStaff(note) {
+  const svg = document.getElementById("staff");
+  svg.innerHTML = "";
+  const left = 26, right = 254;
+  const bottomY = 130, gap = 16, half = gap / 2;
+
+  // 五線
+  for (let i = 0; i < 5; i++) {
+    const y = bottomY - i * gap;
+    svg.appendChild(el("line", { x1:left, y1:y, x2:right, y2:y, stroke:"#555", "stroke-width":1.2 }));
+  }
+  // ト音記号（フォント非依存の自前パス。渦巻きの中心をG線=第2線 y=114 に合わせる）
+  drawClef(svg);
+
+  const nx = 165;
+  const ny = bottomY - note.step * half;
+
+  // 加線（五線の外の偶数ステップに引く）
+  const ledger = [];
+  for (let s = -2; s >= note.step; s -= 2) ledger.push(s);
+  for (let s = 10; s <= note.step; s += 2) ledger.push(s);
+  for (const s of ledger) {
+    const y = bottomY - s * half;
+    svg.appendChild(el("line", { x1:nx-15, y1:y, x2:nx+15, y2:y, stroke:"#555", "stroke-width":1.2 }));
+  }
+
+  // 臨時記号
+  if (note.acc) {
+    svg.appendChild(el("text", {
+      x: nx - 32, y: ny + (note.acc === "b" ? 3 : 6),
+      "font-size": 30, "font-family": "serif", fill: "#222",
+      "text-anchor": "middle"
+    }, note.acc === "#" ? "♯" : "♭"));
+  }
+
+  // 符頭（少し傾いた楕円）
+  const head = el("ellipse", { cx:nx, cy:ny, rx:8.2, ry:6, fill:"#222" });
+  head.setAttribute("transform", `rotate(-18 ${nx} ${ny})`);
+  svg.appendChild(head);
+
+  // 符幹（第3線より下は上向き、上は下向き）
+  const stemLen = 46;
+  if (note.step < 4) {
+    svg.appendChild(el("line", { x1:nx+7.6, y1:ny-2, x2:nx+7.6, y2:ny-stemLen, stroke:"#222", "stroke-width":1.6 }));
+  } else {
+    svg.appendChild(el("line", { x1:nx-7.6, y1:ny+2, x2:nx-7.6, y2:ny+stemLen, stroke:"#222", "stroke-width":1.6 }));
+  }
+}
+
+function drawClef(svg) {
+  // 上のループ → 縦の軸 → G線を巻く渦 → 下のフックと玉、を一筆のストロークで描く
+  const d = `
+    M 46 50
+    C 40 56 40 68 46 80
+    C 54 94 58 102 59 112
+    C 60 126 52 132 44 131
+    C 34 130 30 120 34 112
+    C 38 105 48 105 51 112
+    C 53 118 49 123 44 122
+    M 46 50
+    C 52 45 58 54 58 64
+    C 58 82 48 96 47 118
+    C 46.5 130 48 138 49 146
+    C 50 154 42 158 37 154
+    C 33 150 36 144 41 145
+  `;
+  svg.appendChild(el("path", {
+    d, fill: "none", stroke: "#333",
+    "stroke-width": 3.4, "stroke-linecap": "round", "stroke-linejoin": "round"
+  }));
+  svg.appendChild(el("circle", { cx: 39, cy: 150, r: 3.4, fill: "#333" }));
+}
+
+/* ============================================================
+ * 運指図の描画（SVG）
+ * Roland AE-20 オーナーズマニュアルの運指表からベクター抽出した
+ * 実機シルエットとキー形状を、公式アプリの Fingering 画面と同じ
+ * 配色（白ボディ＋黒アウトライン、押すキーはオレンジ）で描く。
+ * ============================================================ */
+const INK = "#1c1c1c";       // アウトライン
+const ORANGE = "#f2591d";    // 押すキー
+const BODY = "#ffffff";      // ボディ
+
+function drawFingering(f) {
+  const m = 2.5;
+  const svg = el("svg", { viewBox: `${-m} ${-m} ${AE20.w + 2 * m} ${AE20.h + 2 * m}` });
+  svg.appendChild(el("path", {
+    d: AE20.body, fill: BODY, stroke: INK, "stroke-width": 0.9,
+    "fill-rule": "evenodd", "stroke-linejoin": "round"
+  }));
+  for (const k of AE20.keys) {
+    svg.appendChild(el("path", {
+      d: k.d, fill: f.includes(k.i) ? ORANGE : BODY,
+      stroke: INK, "stroke-width": 0.45, "stroke-linejoin": "round"
+    }));
+  }
+  return svg;
+}
+
+/* ============================================================
+ * サウンド（Web Audio）
+ * ============================================================ */
+let audioCtx = null;
+function playNote(midi) {
+  if (!document.getElementById("sound").checked) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const freq = 440 * Math.pow(2, (midi - 69) / 12);
+    const t = audioCtx.currentTime;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.22, t + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+    gain.connect(audioCtx.destination);
+    // 矩形波+三角波を混ぜてリード楽器っぽく
+    for (const [type, vol] of [["sawtooth", 0.5], ["triangle", 0.5]]) {
+      const osc = audioCtx.createOscillator();
+      osc.type = type;
+      osc.frequency.value = freq;
+      const g = audioCtx.createGain();
+      g.gain.value = vol;
+      osc.connect(g).connect(gain);
+      osc.start(t);
+      osc.stop(t + 1);
+    }
+  } catch (e) { /* 音が出なくてもクイズは続行 */ }
+}
+
+/* ============================================================
+ * クイズ本体
+ * ============================================================ */
+const state = { current: null, answered: false, ok: 0, total: 0, streak: 0, missedThisQ: false, lastId: null };
+
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+function newQuestion() {
+  const rangeFn = RANGES[document.getElementById("range").value];
+  const useAcc = document.getElementById("accidentals").checked;
+  let pool = NOTES.filter(n => rangeFn(n) && (useAcc || !n.acc));
+  if (pool.length === 0) pool = NOTES.filter(n => !n.acc);
+
+  // 直前と同じ音は避ける（選択肢が1つしかない場合を除く）
+  let candidates = pool.filter(n => n.id !== state.lastId);
+  if (candidates.length === 0) candidates = pool;
+  const answer = pick(candidates);
+  state.current = answer;
+  state.lastId = answer.id;
+  state.answered = false;
+  state.missedThisQ = false;
+
+  // ダミー選択肢：運指が異なる音から、近い音域を優先しつつ選ぶ
+  const distractorPool = NOTES
+    .filter(n => sig(n.f) !== sig(answer.f) && (useAcc || !n.acc))
+    .sort((a, b) => Math.abs(a.midi - answer.midi) - Math.abs(b.midi - answer.midi));
+  const near = distractorPool.slice(0, 10); // 近傍10音からランダムに5つ
+  const chosen = [];
+  const used = new Set([sig(answer.f)]);
+  while (chosen.length < 5 && near.length > 0) {
+    const i = Math.floor(Math.random() * near.length);
+    const n = near.splice(i, 1)[0];
+    if (!used.has(sig(n.f))) { used.add(sig(n.f)); chosen.push(n); }
+  }
+  // 万一足りなければ残りから補充
+  for (const n of distractorPool) {
+    if (chosen.length >= 5) break;
+    if (!used.has(sig(n.f))) { used.add(sig(n.f)); chosen.push(n); }
+  }
+
+  const options = [answer, ...chosen].sort(() => Math.random() - 0.5);
+
+  drawStaff(answer);
+  const fb = document.getElementById("feedback");
+  fb.textContent = "";
+  fb.className = "feedback";
+
+  const box = document.getElementById("choices");
+  box.innerHTML = "";
+  options.forEach((n, i) => {
+    const card = document.createElement("div");
+    card.className = "choice";
+    card.dataset.correct = (n === answer) ? "1" : "";
+    card.appendChild(drawFingering(n.f));
+    const num = document.createElement("div");
+    num.className = "num";
+    num.textContent = String(i + 1);
+    card.appendChild(num);
+    card.addEventListener("click", () => choose(card, n));
+    box.appendChild(card);
+  });
+}
+
+function choose(card, note) {
+  if (state.answered || card.classList.contains("wrong")) return;
+  const fb = document.getElementById("feedback");
+
+  if (card.dataset.correct) {
+    state.answered = true;
+    state.total++;
+    if (!state.missedThisQ) { state.ok++; state.streak++; }
+    else { state.streak = 0; }
+    updateStats();
+    card.classList.add("correct");
+    document.querySelectorAll(".choice").forEach(c => c.classList.add("disabled"));
+    fb.textContent = `正解！ ${state.current.jp}（${state.current.en}）`;
+    fb.className = "feedback ok";
+    playNote(state.current.midi);
+    setTimeout(newQuestion, 1300);
+  } else {
+    state.missedThisQ = true;
+    card.classList.add("wrong");
+    fb.textContent = `ちがうよ… それは ${note.jp}（${note.en}）の運指`;
+    fb.className = "feedback ng";
+  }
+}
+
+function updateStats() {
+  document.getElementById("stat-ok").textContent = state.ok;
+  document.getElementById("stat-total").textContent = state.total;
+  document.getElementById("stat-streak").textContent = state.streak;
+}
+
+document.getElementById("range").addEventListener("change", newQuestion);
+document.getElementById("accidentals").addEventListener("change", newQuestion);
+document.getElementById("skip").addEventListener("click", () => {
+  if (!state.answered) { state.total++; state.streak = 0; updateStats(); }
+  newQuestion();
+});
+
+// キーボード 1〜6 でも回答できる
+document.addEventListener("keydown", e => {
+  const i = parseInt(e.key, 10);
+  if (i >= 1 && i <= 6) {
+    const cards = document.querySelectorAll(".choice");
+    if (cards[i - 1]) cards[i - 1].click();
+  }
+});
+
+newQuestion();
+</script>
+</body>
+</html>
