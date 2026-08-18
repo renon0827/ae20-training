@@ -39,42 +39,67 @@
   .stats { display: flex; gap: 14px; font-size: 13px; color: var(--sub); }
   .stats b { color: var(--ink); font-size: 16px; margin-left: 3px; }
 
-  .panel {
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px;
-    display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
-    font-size: 13px;
-  }
-  .panel label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-  .panel select {
-    font-size: 13px; padding: 4px 8px; border: 1px solid var(--line);
-    border-radius: 8px; background: #fff; color: var(--ink);
-  }
-  .panel .spacer { flex: 1; }
+  header .spacer { flex: 1; }
   button.ghost {
     font-size: 13px; padding: 6px 12px; border: 1px solid var(--line);
     border-radius: 8px; background: #fff; color: var(--ink); cursor: pointer;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   }
   button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+  button.ghost.icon { padding: 6px 10px; font-size: 15px; line-height: 1; }
+
+  /* ---- 設定モーダル ---- */
+  .modal {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,.35);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .modal[hidden] { display: none; }
+  .sheet {
+    background: var(--card); border-radius: var(--radius);
+    padding: 16px 18px; width: min(420px, calc(100% - 32px));
+    max-height: 85dvh; overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,.2);
+  }
+  .sheet-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 15px; margin-bottom: 12px;
+  }
+  .sheet .row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; padding: 10px 0;
+    border-bottom: 1px solid var(--line); cursor: pointer;
+  }
+  .sheet select {
+    flex: 1; font-size: 14px; padding: 6px 8px; border: 1px solid var(--line);
+    border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  .sheet .about {
+    font-size: 11.5px; color: var(--sub); line-height: 1.7; padding-top: 12px;
+  }
+  @media (max-width: 600px) {
+    .modal { align-items: flex-end; }
+    .sheet {
+      width: 100%; border-radius: var(--radius) var(--radius) 0 0;
+      padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    }
+  }
 
   .question {
     background: var(--card); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 10px 16px 4px; margin-bottom: 14px;
+    border-radius: var(--radius); padding: 8px 16px 2px; margin-bottom: 14px;
     text-align: center;
-    /* 選択肢をスクロールしても出題が見えるように上部に固定 */
-    position: sticky; top: 8px; z-index: 10;
-    box-shadow: 0 2px 10px rgba(0,0,0,.05);
   }
-  .question .prompt { font-size: 14px; color: var(--sub); margin-top: 4px; }
-  #staff { display: block; margin: 0 auto; max-width: 300px; width: 100%; }
+  #staff { display: block; margin: 0 auto; max-width: 280px; width: 100%; }
 
+  /* 出題文と結果表示を兼ねる1行 */
   .feedback {
-    min-height: 30px; font-size: 16px; font-weight: bold;
+    min-height: 28px; font-size: 15px; color: var(--sub);
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    padding-bottom: 8px;
+    padding-bottom: 6px;
   }
-  .feedback.ok { color: var(--ok); }
-  .feedback.ng { color: var(--ng); }
+  .feedback.ok { color: var(--ok); font-weight: bold; }
+  .feedback.ng { color: var(--ng); font-weight: bold; }
 
   .choices {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
@@ -106,67 +131,87 @@
     75% { transform: translateX(5px); }
   }
 
-  footer { margin-top: 20px; font-size: 11.5px; color: var(--sub); line-height: 1.7; }
-
-  /* ---- スマホ向け ---- */
+  /* ---- スマホ向け：100dvh に収めてスクロール不要にする ---- */
   @media (max-width: 600px) {
-    body { padding: 10px 10px 32px; }
-    header { margin-bottom: 10px; }
-    h1 { font-size: 17px; }
-    h1 small { display: block; margin: 2px 0 0; }
-    .panel { padding: 10px 12px; gap: 8px 12px; margin-bottom: 10px; }
-    .question { padding: 6px 10px 2px; margin-bottom: 10px; top: 6px; }
-    #staff { max-width: 220px; }
-    .question .prompt { font-size: 12.5px; margin-top: 2px; }
-    .feedback { min-height: 24px; font-size: 14px; padding-bottom: 6px; }
-    .choices { gap: 8px; }
-    .choice { border-radius: 10px; padding: 6px 2px 2px; }
+    html, body { height: 100dvh; overflow: hidden; }
+    body {
+      padding: 8px 10px;
+      padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    }
+    .wrap { height: 100%; display: flex; flex-direction: column; }
+    header { margin-bottom: 8px; gap: 6px; flex-wrap: nowrap; align-items: center; }
+    h1 { font-size: 16px; white-space: nowrap; }
+    .stats { gap: 10px; font-size: 12px; white-space: nowrap; }
+    .stats b { font-size: 14px; }
+    button.ghost { font-size: 12px; padding: 5px 9px; }
+
+    .question { flex: none; padding: 4px 8px 0; margin-bottom: 8px; }
+    #staff { max-width: 200px; }
+    .feedback { min-height: 22px; font-size: 13.5px; padding-bottom: 4px; }
+
+    /* 残りの高さを6択(3×2)で使い切る。運指図は枠に合わせて自動縮小 */
+    .choices {
+      flex: 1; min-height: 0;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+    }
+    .choice { min-height: 0; border-radius: 10px; padding: 4px 2px 2px; }
+    .choice svg { flex: 1; min-height: 0; width: 100%; max-width: none; height: 100%; }
+    .choice .num { display: none; }
     .choice:hover:not(.disabled):not(.correct) { transform: none; box-shadow: none; }
   }
-  @media (max-width: 360px) {
-    .choices { grid-template-columns: repeat(2, 1fr); }
+  /* 高さの低い端末では楽譜をさらに小さく */
+  @media (max-width: 600px) and (max-height: 720px) {
+    #staff { max-width: 170px; }
+    .feedback { min-height: 20px; font-size: 12.5px; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>AE-20 運指トレーニング<small>Aerophone AE-20（サックス運指）</small></h1>
+    <h1>AE-20 運指</h1>
     <div class="stats">
       <span>正解<b id="stat-ok">0</b><span style="font-size:11px">/</span><b id="stat-total" style="font-size:13px">0</b></span>
       <span>連続<b id="stat-streak">0</b></span>
     </div>
-  </header>
-
-  <div class="panel">
-    <label>出題範囲
-      <select id="range">
-        <option value="mid">まずはここから（ソ4〜ド5）</option>
-        <option value="low">低音域（シ♭3〜シ4）</option>
-        <option value="high">高音域（ド5〜ファ♯5）</option>
-        <option value="all" selected>全音域（シ♭3〜ファ♯5）</option>
-      </select>
-    </label>
-    <label><input type="checkbox" id="accidentals"> ♯・♭を含む</label>
-    <label><input type="checkbox" id="sound" checked> 正解音を鳴らす</label>
     <span class="spacer"></span>
     <button class="ghost" id="skip">スキップ ▸</button>
-  </div>
+    <button class="ghost icon" id="menu-btn" aria-label="設定">⚙</button>
+  </header>
 
   <div class="question">
     <svg id="staff" viewBox="0 0 280 190" aria-label="出題の音符"></svg>
-    <div class="prompt">この音の運指はどれ？</div>
-    <div class="feedback" id="feedback"></div>
+    <div class="feedback" id="feedback">この音の運指はどれ？</div>
   </div>
 
   <div class="choices" id="choices"></div>
 
-  <footer>
-    図と運指は Roland AE-20 オーナーズマニュアルの運指表（Sax）から抽出した公式データです。オレンジ＝押すキー。
-    出題範囲は運指表と同じ B♭3〜F♯5（裏側の親指オクターブキーは全体をオクターブ移調するもので、運指表には含まれません）。
-    複数の運指がある音は第1候補を正解としています。
-    再生音は記譜音（実音はアルトサックス音色の場合、長6度下のE♭管実音になります）。
-  </footer>
+  <div class="modal" id="modal" hidden>
+    <div class="sheet">
+      <div class="sheet-head">
+        <b>設定</b>
+        <button class="ghost icon" id="menu-close" aria-label="閉じる">✕</button>
+      </div>
+      <label class="row">出題範囲
+        <select id="range">
+          <option value="mid">まずはここから（ソ4〜ド5）</option>
+          <option value="low">低音域（シ♭3〜シ4）</option>
+          <option value="high">高音域（ド5〜ファ♯5）</option>
+          <option value="all" selected>全音域（シ♭3〜ファ♯5）</option>
+        </select>
+      </label>
+      <label class="row"><input type="checkbox" id="accidentals"> ♯・♭を含む</label>
+      <label class="row"><input type="checkbox" id="sound" checked> 正解音を鳴らす</label>
+      <div class="about">
+        図と運指は Roland AE-20 オーナーズマニュアルの運指表（Sax）から抽出した公式データです。オレンジ＝押すキー。
+        出題範囲は運指表と同じ B♭3〜F♯5（裏側の親指オクターブキーは全体をオクターブ移調するもので、運指表には含まれません）。
+        複数の運指がある音は第1候補を正解としています。
+        再生音は記譜音（実音はアルトサックス音色の場合、長6度下のE♭管実音になります）。
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -409,7 +454,7 @@ function newQuestion() {
 
   drawStaff(answer);
   const fb = document.getElementById("feedback");
-  fb.textContent = "";
+  fb.textContent = "この音の運指はどれ？";
   fb.className = "feedback";
 
   const box = document.getElementById("choices");
@@ -460,6 +505,13 @@ function updateStats() {
 
 document.getElementById("range").addEventListener("change", newQuestion);
 document.getElementById("accidentals").addEventListener("change", newQuestion);
+
+// 設定モーダル
+const modal = document.getElementById("modal");
+document.getElementById("menu-btn").addEventListener("click", () => { modal.hidden = false; });
+document.getElementById("menu-close").addEventListener("click", () => { modal.hidden = true; });
+modal.addEventListener("click", e => { if (e.target === modal) modal.hidden = true; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") modal.hidden = true; });
 document.getElementById("skip").addEventListener("click", () => {
   if (!state.answered) { state.total++; state.streak = 0; updateStats(); }
   newQuestion();
