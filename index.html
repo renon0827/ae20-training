@@ -234,6 +234,7 @@
           <option value="f2n">運指 → 楽譜</option>
           <option value="shuffle">シャッフル（両方向）</option>
           <option value="live">実戦（BPMに合わせて連続）</option>
+          <option value="rhythm">音ゲー（流れる音符）</option>
         </select>
       </label>
       <label class="row">BPM
@@ -263,6 +264,8 @@
         複数の運指がある音は第1候補を正解としています。
         実戦モードは1小節（4/4拍子＝4拍）単位で進みます。小節内の音符を左から順に、
         バーが切れる前にすべて入力してください。右側のグレーの小節は次の小節のプレビューです。
+        音ゲーモードは音符が左へ流れます。青い判定ラインを通過する瞬間に正しい運指をタップ
+        （±0.12秒=Perfect、±0.3秒=Good、それ以外や運指ミス=ミス）。
         再生音は記譜音（実音はアルトサックス音色の場合、長6度下のE♭管実音になります）。
       </div>
     </div>
@@ -803,10 +806,240 @@ function tickSound(accent) {
 }
 
 
+/* ============================================================
+ * 音ゲーモード
+ * 音符が右から左へ連続スクロールし、判定ライン通過の瞬間に
+ * 正しい運指をタップする。±120ms=Perfect、±300ms=Good、
+ * それ以外（遅れ・運指ミス）はミス。時刻は performance.now() 基準。
+ * ============================================================ */
+const rhythm = {
+  on:false, paused:false, raf:null,
+  notes:[], bars:[], gLayer:null,
+  ti:0,                 // いま判定対象の音符インデックス
+  beatMs:0, noteInt:0,  // 拍の長さ / 音符の間隔(ms)
+  lastT:0, lastBarT:0,  // 生成済みの最後の音符/小節線の時刻
+  nextBeat:0, beatCount:0, pausedAt:0,
+};
+const RHYTHM_LINE_X = 140, PX_PER_BEAT = 60;
+const JUDGE_PERFECT = 120, JUDGE_GOOD = 300;
+
+function rhythmX(t, now) {
+  return RHYTHM_LINE_X + (t - now) / rhythm.beatMs * PX_PER_BEAT;
+}
+
+function rhythmAddNote(t) {
+  const pool = notePool();
+  const prev = rhythm.notes[rhythm.notes.length - 1];
+  let cand = pool.filter(n => !prev || n.id !== prev.n.id);
+  if (cand.length === 0) cand = pool;
+  const n = pick(cand);
+  const g = el("g", {});
+  noteInto(g, n, 0, "#222");
+  rhythm.gLayer.appendChild(g);
+  rhythm.notes.push({ n, t, g, st: "pending" });
+}
+
+function rhythmAddBar(t) {
+  const top = STAFF_BOTTOM - 4 * STAFF_GAP;
+  const g = el("g", {});
+  g.appendChild(el("line", { x1:0, y1:top, x2:0, y2:STAFF_BOTTOM, stroke:"#999", "stroke-width":1.6 }));
+  rhythm.gLayer.appendChild(g);
+  rhythm.bars.push({ t, g });
+}
+
+// 画面右端＋余裕まで音符と小節線を補充しておく
+function rhythmSpawn(now) {
+  const horizon = now + ((640 - RHYTHM_LINE_X) / PX_PER_BEAT + 2) * rhythm.beatMs;
+  while (rhythm.lastT + rhythm.noteInt < horizon) {
+    rhythm.lastT += rhythm.noteInt;
+    rhythmAddNote(rhythm.lastT);
+  }
+  while (rhythm.lastBarT + 4 * rhythm.beatMs < horizon) {
+    rhythm.lastBarT += 4 * rhythm.beatMs;
+    rhythmAddBar(rhythm.lastBarT);
+  }
+}
+
+// 判定結果を音符の色に反映
+function rhythmPaint(o, color) {
+  while (o.g.firstChild) o.g.removeChild(o.g.firstChild);
+  noteInto(o.g, o.n, 0, color);
+  o.g.setAttribute("opacity", "0.55");
+}
+
+function rhythmChoices() {
+  const box = document.getElementById("choices");
+  box.innerHTML = "";
+  box.className = "choices live";
+  const target = rhythm.notes[rhythm.ti];
+  if (!target) return;
+  const options = [target.n, ...pickDistractors(target.n, 2)].sort(() => Math.random() - 0.5);
+  options.forEach((n, i) => {
+    const card = document.createElement("div");
+    card.className = "choice";
+    card.dataset.correct = (n === target.n) ? "1" : "";
+    card.appendChild(drawFingering(n.f));
+    const num = document.createElement("div");
+    num.className = "num";
+    num.textContent = String(i + 1);
+    card.appendChild(num);
+    card.addEventListener("click", () => rhythmAnswer(n));
+    box.appendChild(card);
+  });
+}
+
+function rhythmAnswer(n) {
+  if (!rhythm.on || rhythm.paused) return;
+  const target = rhythm.notes[rhythm.ti];
+  if (!target || target.st !== "pending") return;
+  const fb = document.getElementById("feedback");
+  const dt = performance.now() - target.t;
+
+  if (dt < -JUDGE_GOOD) {  // 判定ラインのだいぶ手前：ノーカウント
+    fb.textContent = "まだはやい！";
+    fb.className = "feedback";
+    return;
+  }
+  state.total++;
+  if (n === target.n) {
+    const perfect = Math.abs(dt) <= JUDGE_PERFECT;
+    state.ok++; state.streak++;
+    fb.textContent = `${perfect ? "Perfect!" : "Good"} ${target.n.jp}（${target.n.en}）`;
+    fb.className = "feedback ok";
+    rhythmPaint(target, LIVE_OK);
+    target.st = "hit";
+    playNote(target.n.midi);
+  } else {
+    state.streak = 0;
+    fb.textContent = `ミス… それは ${n.jp}（${n.en}）`;
+    fb.className = "feedback ng";
+    rhythmPaint(target, "#d64545");
+    target.st = "miss";
+  }
+  updateStats();
+  rhythm.ti++;
+  rhythmChoices();
+}
+
+function rhythmFrame(now) {
+  if (!rhythm.on || rhythm.paused) return;
+  rhythmSpawn(now);
+
+  // 判定対象が遅れ超過 → ミス
+  const target = rhythm.notes[rhythm.ti];
+  if (target && now - target.t > JUDGE_GOOD) {
+    state.total++; state.streak = 0; updateStats();
+    const fb = document.getElementById("feedback");
+    fb.textContent = `ミス… ${target.n.jp}（${target.n.en}）が通りすぎた`;
+    fb.className = "feedback ng";
+    rhythmPaint(target, "#d64545");
+    target.st = "late";
+    rhythm.ti++;
+    rhythmChoices();
+  }
+
+  // スクロール位置の更新と、画面外に出たものの掃除
+  for (const o of rhythm.notes) {
+    if (!o.g) continue;
+    const x = rhythmX(o.t, now);
+    if (x < 62) { o.g.remove(); o.g = null; continue; }
+    o.g.setAttribute("transform", `translate(${x} 0)`);
+  }
+  for (const b of rhythm.bars) {
+    if (!b.g) continue;
+    const x = rhythmX(b.t, now);
+    if (x < 62) { b.g.remove(); b.g = null; continue; }
+    b.g.setAttribute("transform", `translate(${x} 0)`);
+  }
+
+  // メトロノーム（4拍ごとにアクセント）
+  while (now >= rhythm.nextBeat) {
+    tickSound(rhythm.beatCount % 4 === 0);
+    rhythm.beatCount++;
+    rhythm.nextBeat += rhythm.beatMs;
+  }
+
+  rhythm.raf = requestAnimationFrame(rhythmFrame);
+}
+
+function startRhythm() {
+  stopRhythm();
+  rhythm.on = true;
+  rhythm.beatMs = liveBeatMs();
+  rhythm.noteInt = (4 / +document.getElementById("density").value) * rhythm.beatMs;
+  rhythm.notes = []; rhythm.bars = []; rhythm.ti = 0;
+
+  const qarea = document.getElementById("qarea");
+  qarea.innerHTML = "";
+  const svg = el("svg", { viewBox: "0 0 640 190", class: "qseq" });
+  staffInto(svg, 26, 614);
+  // 判定ライン
+  svg.appendChild(el("line", {
+    x1: RHYTHM_LINE_X, y1: STAFF_BOTTOM - 4 * STAFF_GAP - 18,
+    x2: RHYTHM_LINE_X, y2: STAFF_BOTTOM + 18,
+    stroke: LIVE_PENDING, "stroke-width": 3, opacity: 0.65, "stroke-linecap": "round"
+  }));
+  rhythm.gLayer = el("g", {});
+  svg.appendChild(rhythm.gLayer);
+  qarea.appendChild(svg);
+
+  const now = performance.now();
+  const t0 = now + 2000;  // 2秒のリードイン
+  rhythm.lastT = t0 - rhythm.noteInt;
+  rhythm.lastBarT = t0 - rhythm.noteInt / 2;  // 小節線は音符の間に置く
+  rhythmAddBar(rhythm.lastBarT);
+  // メトロノームは t0 の拍グリッドに合わせ、直近の未来の拍から開始
+  rhythm.nextBeat = t0;
+  while (rhythm.nextBeat - rhythm.beatMs > now) rhythm.nextBeat -= rhythm.beatMs;
+  rhythm.beatCount = ((Math.round((rhythm.nextBeat - t0) / rhythm.beatMs) % 4) + 4) % 4;
+  rhythmSpawn(now);
+
+  document.getElementById("livebar").hidden = true;
+  document.getElementById("skip").textContent = "‖ 一時停止";
+  const fb = document.getElementById("feedback");
+  fb.textContent = "ラインを通る瞬間にタップ！";
+  fb.className = "feedback";
+  rhythmChoices();
+  rhythm.raf = requestAnimationFrame(rhythmFrame);
+}
+
+function stopRhythm() {
+  if (rhythm.raf) cancelAnimationFrame(rhythm.raf);
+  rhythm.raf = null;
+  rhythm.on = false;
+  rhythm.paused = false;
+  document.getElementById("skip").textContent = "スキップ ▸";
+}
+
+function togglePauseRhythm() {
+  if (!rhythm.on) return;
+  if (rhythm.paused) {  // 再開：停止していた時間ぶん予定時刻を後ろへずらす
+    const delta = performance.now() - rhythm.pausedAt;
+    for (const o of rhythm.notes) o.t += delta;
+    for (const b of rhythm.bars) b.t += delta;
+    rhythm.lastT += delta;
+    rhythm.lastBarT += delta;
+    rhythm.nextBeat += delta;
+    rhythm.paused = false;
+    document.getElementById("skip").textContent = "‖ 一時停止";
+    rhythm.raf = requestAnimationFrame(rhythmFrame);
+  } else {
+    rhythm.paused = true;
+    rhythm.pausedAt = performance.now();
+    if (rhythm.raf) cancelAnimationFrame(rhythm.raf);
+    rhythm.raf = null;
+    document.getElementById("skip").textContent = "▶ 再開";
+  }
+}
+
 // モード・設定に応じて画面を作り直す
 function refresh() {
-  if (document.getElementById("mode").value === "live") startLive();
-  else { stopLive(); newQuestion(); }
+  stopLive();
+  stopRhythm();
+  const mode = document.getElementById("mode").value;
+  if (mode === "live") startLive();
+  else if (mode === "rhythm") startRhythm();
+  else newQuestion();
 }
 
 document.getElementById("mode").addEventListener("change", refresh);
@@ -815,8 +1048,14 @@ document.getElementById("accidentals").addEventListener("change", refresh);
 document.getElementById("bpm").addEventListener("input", () => {
   document.getElementById("bpm-val").textContent = document.getElementById("bpm").value;
 });
-document.getElementById("bpm").addEventListener("change", () => { if (live.on) startLive(); });
-document.getElementById("density").addEventListener("change", () => { if (live.on) startLive(); });
+document.getElementById("bpm").addEventListener("change", () => {
+  if (live.on) startLive();
+  else if (rhythm.on) startRhythm();
+});
+document.getElementById("density").addEventListener("change", () => {
+  if (live.on) startLive();
+  else if (rhythm.on) startRhythm();
+});
 
 // 設定モーダル
 const modal = document.getElementById("modal");
@@ -825,7 +1064,9 @@ document.getElementById("menu-close").addEventListener("click", () => { modal.hi
 modal.addEventListener("click", e => { if (e.target === modal) modal.hidden = true; });
 document.addEventListener("keydown", e => { if (e.key === "Escape") modal.hidden = true; });
 document.getElementById("skip").addEventListener("click", () => {
-  if (document.getElementById("mode").value === "live") { togglePauseLive(); return; }
+  const mode = document.getElementById("mode").value;
+  if (mode === "live") { togglePauseLive(); return; }
+  if (mode === "rhythm") { togglePauseRhythm(); return; }
   if (!state.answered) { state.total++; state.streak = 0; updateStats(); }
   newQuestion();
 });
