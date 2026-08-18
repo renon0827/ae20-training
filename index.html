@@ -58,7 +58,7 @@
   .sheet {
     background: var(--card); border-radius: var(--radius);
     padding: 16px 18px; width: min(420px, calc(100% - 32px));
-    max-height: 85dvh; overflow-y: auto;
+    max-height: calc(var(--app-h, 100dvh) * 0.85); overflow-y: auto;
     box-shadow: 0 10px 40px rgba(0,0,0,.2);
   }
   .sheet-head {
@@ -78,7 +78,8 @@
     font-size: 11.5px; color: var(--sub); line-height: 1.7; padding-top: 12px;
   }
   @media (max-width: 600px) {
-    .modal { align-items: flex-end; }
+    /* シートも可視高さの下端に合わせる（下部ツールバーに隠れないように） */
+    .modal { align-items: flex-end; bottom: auto; height: var(--app-h, 100dvh); }
     .sheet {
       width: 100%; border-radius: var(--radius) var(--radius) 0 0;
       padding-bottom: calc(16px + env(safe-area-inset-bottom));
@@ -141,9 +142,17 @@
     75% { transform: translateX(5px); }
   }
 
-  /* ---- スマホ向け：100dvh に収めてスクロール不要にする ---- */
+  /* ---- スマホ向け：実際の可視高さに収めてスクロール不要にする ----
+     100dvh はモバイルChromeの下部ツールバーとずれることがあるため、
+     JSが --app-h に window.innerHeight を反映する（フォールバック付き） */
   @media (max-width: 600px) {
-    html, body { height: 100dvh; overflow: hidden; }
+    html, body {
+      height: 100vh;
+      height: 100dvh;
+      height: var(--app-h, 100dvh);
+      min-height: 0;
+      overflow: hidden;
+    }
     body {
       padding: 8px 10px;
       padding-bottom: calc(8px + env(safe-area-inset-bottom));
@@ -829,6 +838,17 @@ document.addEventListener("keydown", e => {
     if (cards[i - 1]) cards[i - 1].click();
   }
 });
+
+// モバイルブラウザのツールバー分を除いた実際の可視高さを --app-h に反映
+// （Chrome for Android の下部アドレスバー等が 100dvh とずれる問題への対策）
+function setAppHeight() {
+  const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  document.documentElement.style.setProperty("--app-h", Math.round(h) + "px");
+}
+setAppHeight();
+window.addEventListener("resize", setAppHeight);
+window.addEventListener("orientationchange", setAppHeight);
+if (window.visualViewport) window.visualViewport.addEventListener("resize", setAppHeight);
 
 refresh();
 </script>
