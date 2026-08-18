@@ -231,11 +231,11 @@
         <input type="range" id="bpm" min="40" max="180" step="5" value="60">
         <b id="bpm-val" style="min-width:2.2em;text-align:right">60</b>
       </label>
-      <label class="row">音符の間隔
+      <label class="row">音符の密度
         <select id="density">
-          <option value="4">4拍ごと（ゆったり）</option>
-          <option value="2" selected>2拍ごと</option>
-          <option value="1">1拍ごと（高密度）</option>
+          <option value="2" selected>1小節に2音（2分音符）</option>
+          <option value="4">1小節に4音（4分音符）</option>
+          <option value="8">1小節に8音（8分音符）</option>
         </select>
       </label>
       <label class="row">出題範囲
@@ -252,7 +252,8 @@
         図と運指は Roland AE-20 オーナーズマニュアルの運指表（Sax）から抽出した公式データです。オレンジ＝押すキー。
         出題範囲は運指表と同じ B♭3〜F♯5（裏側の親指オクターブキーは全体をオクターブ移調するもので、運指表には含まれません）。
         複数の運指がある音は第1候補を正解としています。
-        実戦モードは BPM×音符の間隔ごとに譜面が1音進みます。バーが切れる前に運指を選んでください。
+        実戦モードは1小節（4/4拍子＝4拍）単位で進みます。小節内の音符を左から順に、
+        バーが切れる前にすべて入力してください。右側のグレーの小節は次の小節のプレビューです。
         再生音は記譜音（実音はアルトサックス音色の場合、長6度下のE♭管実音になります）。
       </div>
     </div>
@@ -382,13 +383,21 @@ function makeStaffSvg(note, cls) {
   return svg;
 }
 
-// 実戦モード：先頭（現在の音）を色付きで、続く音符を並べた横長の譜面
-function makeSeqStaffSvg(notes, currentColor) {
+// 実戦モード：現在の小節＋次の小節（プレビュー）を小節線付きで描く
+// idx より前は正解済み（緑）、idx がいまのターゲット（青）
+function makeMeasuresSvg(cur, next, idx) {
   const svg = el("svg", { viewBox: "0 0 640 190", class: "qseq" });
   staffInto(svg, 26, 614);
-  notes.forEach((n, i) => {
-    noteInto(svg, n, 105 + i * 88, i === 0 ? currentColor : "#222");
-  });
+  const top = STAFF_BOTTOM - 4 * STAFF_GAP;
+  for (const x of [352, 614]) {
+    svg.appendChild(el("line", { x1:x, y1:top, x2:x, y2:STAFF_BOTTOM, stroke:"#555", "stroke-width":1.8 }));
+  }
+  const drawMeasure = (notes, x0, colorFn) => {
+    const w = 256;
+    notes.forEach((n, i) => noteInto(svg, n, x0 + (i + 0.5) * (w / notes.length), colorFn(i)));
+  };
+  drawMeasure(cur, 94, i => i < idx ? LIVE_OK : (i === idx ? LIVE_PENDING : "#222"));
+  drawMeasure(next, 356, () => "#9b968d");
   return svg;
 }
 
@@ -592,40 +601,49 @@ function updateStats() {
 
 /* ============================================================
  * 実戦モード
- * 横長の譜面にランダムな音符が無限に流れ、BPM×間隔ごとに1音進む。
- * 期限（残り時間バー）内に3択から運指を選ぶ。
+ * 現在の小節＋次の小節（プレビュー）を表示し、1小節（4/4＝4拍）を
+ * 期限として小節内の音符を左から順にすべて入力する。
+ * 拍ごとにメトロノームが鳴り、4拍目の次で小節が進む。
+ * 未入力の音はミスとして数える。音符は無限に生成される。
  * ============================================================ */
-const live = { on:false, paused:false, timer:null, queue:[], answered:false, missed:false };
+const live = {
+  on:false, paused:false, timer:null, beat:0,
+  cur:[], next:[], idx:0, noteMissed:false,
+};
 const LIVE_PENDING = "#2f6fed", LIVE_OK = "#1d9a5b";
 
-function liveMs() {
-  const bpm = +document.getElementById("bpm").value;
-  const beats = +document.getElementById("density").value;
-  return beats * 60000 / bpm;
-}
+function liveBeatMs() { return 60000 / +document.getElementById("bpm").value; }
+function liveMeasureMs() { return 4 * liveBeatMs(); }
 
-function fillLiveQueue() {
+// 1小節分のランダムな音符列（直前の音との連続重複は避ける）
+function makeMeasure(prevLast) {
   const pool = notePool();
-  while (live.queue.length < 8) {
-    const last = live.queue[live.queue.length - 1];
+  const density = +document.getElementById("density").value;
+  const m = [];
+  let last = prevLast;
+  for (let i = 0; i < density; i++) {
     let cand = pool.filter(n => !last || n.id !== last.id);
     if (cand.length === 0) cand = pool;
-    live.queue.push(pick(cand));
+    const n = pick(cand);
+    m.push(n);
+    last = n;
   }
+  return m;
 }
 
-function renderLive(color) {
+function renderLiveStaff() {
   const qarea = document.getElementById("qarea");
   qarea.innerHTML = "";
-  qarea.appendChild(makeSeqStaffSvg(live.queue.slice(0, 6), color));
+  qarea.appendChild(makeMeasuresSvg(live.cur, live.next, live.idx));
 }
 
 function liveChoices() {
-  const answer = live.queue[0];
-  const options = [answer, ...pickDistractors(answer, 2)].sort(() => Math.random() - 0.5);
   const box = document.getElementById("choices");
   box.innerHTML = "";
   box.className = "choices live";
+  if (live.idx >= live.cur.length) return;  // 小節クリア後は空
+  const answer = live.cur[live.idx];
+  const options = [answer, ...pickDistractors(answer, 2)].sort(() => Math.random() - 0.5);
   options.forEach((n, i) => {
     const card = document.createElement("div");
     card.className = "choice";
@@ -641,43 +659,62 @@ function liveChoices() {
 }
 
 function liveAnswer(card, note) {
-  if (!live.on || live.paused || live.answered || card.classList.contains("wrong")) return;
+  if (!live.on || live.paused || live.idx >= live.cur.length) return;
+  if (card.classList.contains("wrong")) return;
   const fb = document.getElementById("feedback");
   if (card.dataset.correct) {
-    live.answered = true;
     state.total++;
-    if (!live.missed) { state.ok++; state.streak++; } else { state.streak = 0; }
+    if (!live.noteMissed) { state.ok++; state.streak++; } else { state.streak = 0; }
+    live.noteMissed = false;
     updateStats();
-    card.classList.add("correct");
-    document.querySelectorAll(".choice").forEach(c => c.classList.add("disabled"));
-    fb.textContent = `正解！ ${note.jp}（${note.en}）`;
-    fb.className = "feedback ok";
-    renderLive(LIVE_OK);
     playNote(note.midi);
+    live.idx++;
+    if (live.idx >= live.cur.length) {
+      fb.textContent = "小節クリア！ 次の小節を待とう";
+      fb.className = "feedback ok";
+    } else {
+      fb.textContent = `正解！ ${note.jp}（${note.en}）— 次の音へ`;
+      fb.className = "feedback ok";
+    }
+    renderLiveStaff();
+    liveChoices();
   } else {
-    live.missed = true;
+    live.noteMissed = true;
     card.classList.add("wrong");
     fb.textContent = "ちがうよ…";
     fb.className = "feedback ng";
   }
 }
 
-function liveTick() {
-  if (!live.answered) {  // 時間切れ
-    const cur = live.queue[0];
-    state.total++; state.streak = 0; updateStats();
+// 小節の切り替わり：未入力分をミスとして数え、次の小節へ
+function liveMeasureAdvance() {
+  const remaining = live.cur.length - live.idx;
+  if (remaining > 0) {
+    state.total += remaining;
+    state.streak = 0;
+    updateStats();
     const fb = document.getElementById("feedback");
-    fb.textContent = `時間切れ… ${cur.jp}（${cur.en}）だったよ`;
+    fb.textContent = `時間切れ… ${remaining}音のこしちゃった`;
     fb.className = "feedback ng";
   }
-  live.queue.shift();
-  fillLiveQueue();
-  live.answered = false;
-  live.missed = false;
-  renderLive(LIVE_PENDING);
+  live.cur = live.next;
+  live.next = makeMeasure(live.cur[live.cur.length - 1]);
+  live.idx = 0;
+  live.noteMissed = false;
+  renderLiveStaff();
   liveChoices();
-  restartBar(liveMs());
-  tickSound();
+  restartBar(liveMeasureMs());
+}
+
+// 拍ごとに呼ばれる。4拍目の次＝小節頭で小節を進める
+function liveBeat() {
+  live.beat = (live.beat + 1) % 4;
+  if (live.beat === 0) {
+    liveMeasureAdvance();
+    tickSound(true);
+  } else {
+    tickSound(false);
+  }
 }
 
 function restartBar(ms) {
@@ -692,19 +729,21 @@ function restartBar(ms) {
 function startLive() {
   stopLive();
   live.on = true;
-  live.queue = [];
-  fillLiveQueue();
-  live.answered = false;
-  live.missed = false;
+  live.cur = makeMeasure(null);
+  live.next = makeMeasure(live.cur[live.cur.length - 1]);
+  live.idx = 0;
+  live.beat = 0;
+  live.noteMissed = false;
   document.getElementById("livebar").hidden = false;
   document.getElementById("skip").textContent = "‖ 一時停止";
   const fb = document.getElementById("feedback");
-  fb.textContent = "バーが切れる前に運指をタップ！";
+  fb.textContent = "バーが切れる前に小節内の音を順番に入力！";
   fb.className = "feedback";
-  renderLive(LIVE_PENDING);
+  renderLiveStaff();
   liveChoices();
-  restartBar(liveMs());
-  live.timer = setInterval(liveTick, liveMs());
+  restartBar(liveMeasureMs());
+  tickSound(true);
+  live.timer = setInterval(liveBeat, liveBeatMs());
 }
 
 function stopLive() {
@@ -718,11 +757,13 @@ function stopLive() {
 
 function togglePauseLive() {
   if (!live.on) return;
-  if (live.paused) {
+  if (live.paused) {  // 再開：いまの小節の時間をリセットして続行
     live.paused = false;
+    live.beat = 0;
     document.getElementById("skip").textContent = "‖ 一時停止";
-    restartBar(liveMs());
-    live.timer = setInterval(liveTick, liveMs());
+    restartBar(liveMeasureMs());
+    tickSound(true);
+    live.timer = setInterval(liveBeat, liveBeatMs());
   } else {
     live.paused = true;
     clearInterval(live.timer);
@@ -734,8 +775,8 @@ function togglePauseLive() {
   }
 }
 
-// ティックごとの小さなクリック音（メトロノーム）
-function tickSound() {
+// 拍のメトロノーム音（小節頭はアクセント）
+function tickSound(accent) {
   if (!document.getElementById("sound").checked) return;
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
@@ -744,13 +785,14 @@ function tickSound() {
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     osc.type = "square";
-    osc.frequency.value = 1500;
-    g.gain.setValueAtTime(0.04, t);
+    osc.frequency.value = accent ? 2000 : 1300;
+    g.gain.setValueAtTime(accent ? 0.05 : 0.03, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
     osc.connect(g).connect(audioCtx.destination);
     osc.start(t); osc.stop(t + 0.06);
   } catch (e) { /* 音が出なくても続行 */ }
 }
+
 
 // モード・設定に応じて画面を作り直す
 function refresh() {
